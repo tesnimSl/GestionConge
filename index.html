@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Suivi des congés</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png"><meta name="theme-color" content="#2f5bea"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<style>
+:root{--bg:#f5f6f8;--sf:#fff;--tx:#1b2430;--mu:#667085;--bd:#e3e6eb;--ac:#2f5bea;--ok:#12805c;--wa:#b7791f;--er:#c0392b;--calc:#eef3ff;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12161c;--sf:#1b2129;--tx:#e8ecf1;--mu:#98a2b3;--bd:#2c343f;--ac:#7d9bff;--ok:#4cc79a;--wa:#e5b34d;--er:#ff7b6b;--calc:#1f2a44;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#12161c;--sf:#1b2129;--tx:#e8ecf1;--mu:#98a2b3;--bd:#2c343f;--ac:#7d9bff;--ok:#4cc79a;--wa:#e5b34d;--er:#ff7b6b;--calc:#1f2a44;color-scheme:dark}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;display:flex;min-height:100vh}
+nav{width:210px;background:var(--sf);border-right:1px solid var(--bd);padding:16px 10px;position:sticky;top:0;height:100vh;flex-shrink:0}
+nav h1{font-size:16px;margin:0 8px 14px}nav button{display:block;width:100%;text-align:left;border:0;background:none;color:var(--tx);padding:9px 10px;border-radius:8px;font:inherit;cursor:pointer}
+nav button.on{background:var(--ac);color:#fff}main{flex:1;padding:20px;min-width:0;max-width:1100px}
+.top{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px}.top h2{margin:0;flex:1;font-size:20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin-bottom:18px}
+.card{background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:14px}.card small{color:var(--mu);display:block}.card b{font-size:24px}
+.neg{color:var(--er)}.low{color:var(--wa)}.good{color:var(--ok)}
+.tw{overflow-x:auto;background:var(--sf);border:1px solid var(--bd);border-radius:12px}
+table{border-collapse:collapse;width:100%;min-width:720px}th,td{padding:8px 10px;border-bottom:1px solid var(--bd);text-align:right;white-space:nowrap}th:first-child,td:first-child,td.l,th.l{text-align:left}
+th{font-size:12px;color:var(--mu);font-weight:600}td.c{background:var(--calc)}tfoot td{font-weight:700}
+button.b,select,input,textarea{font:inherit;color:var(--tx);background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:7px 10px}
+button.b{cursor:pointer}button.p{background:var(--ac);color:#fff;border-color:var(--ac)}button.d{color:var(--er)}
+dialog{border:1px solid var(--bd);border-radius:14px;background:var(--sf);color:var(--tx);max-width:460px;width:94%}dialog label{display:block;margin:8px 0 2px;color:var(--mu);font-size:13px}dialog input,dialog select,dialog textarea{width:100%}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.msg{position:fixed;bottom:16px;right:16px;background:var(--tx);color:var(--bg);padding:10px 14px;border-radius:10px;z-index:9}
+.tag{padding:2px 8px;border-radius:99px;font-size:12px;border:1px solid var(--bd)}.sec{margin:22px 0 8px;font-size:16px}
+@media(max-width:700px){body{display:block}nav{width:100%;height:auto;position:static;display:flex;overflow-x:auto;border:0;border-bottom:1px solid var(--bd);padding:8px}nav h1{display:none}nav button{width:auto;white-space:nowrap}main{padding:14px}}
+@media print{nav,.top button,.top select,.row,.noprint{display:none!important}body{display:block}}
+</style></head><body>
+<nav id="nav"></nav><main id="main"></main><dialog id="dlg"></dialog>
+<script>
+"use strict";
+const MOIS=["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+const KEY="conges_v1",R=x=>Math.round(x*1e6)/1e6,uid=()=>Math.random().toString(36).slice(2,10);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let mem=null;
+function load(){try{const t=localStorage.getItem(KEY);if(t)return JSON.parse(t)}catch(e){}return mem?JSON.parse(mem):null}
+let DBR=null,WHO="Données stockées sur cet appareil",PD="",CM=new Date().getMonth(),pt;
+function dbPush(){if(!DBR)return;clearTimeout(pt);pt=setTimeout(()=>DBR.set(JSON.parse(JSON.stringify(S))).catch(()=>toast("Synchronisation impossible")),600)}
+function save(){const t=JSON.stringify(S);mem=t;if(DBR)return dbPush();try{localStorage.setItem(KEY,t)}catch(e){}}
+function demo(){return{demo:true,settings:{cpAnnual:22,cpMonthly:1.83,smAnnual:5,smCarry:false,incPlanned:false,dec:2,start:"01-01"},
+years:{2026:{open:7.27,openManual:false,smOpen:5,cpMonthly:1.83,cpAnnual:22,smAnnual:5}},
+ops:[{id:uid(),start:"2026-01-12",end:"2026-01-14",type:"cp",days:3,status:"validé",comment:"Démo"},{id:uid(),start:"2026-03-09",end:"2026-03-10",type:"sm",days:2,status:"validé",comment:"Démo"}],
+adj:[],log:[{t:Date.now(),a:"Jeu de démonstration chargé",d:""}]}}
+let S=load()||demo(),Y=2026,V="dash",F={q:"",m:"",t:"",s:""};
+const yr=(s,y)=>s.years[y];
+function bdays(a,b){if(!a||!b||b<a)return 0;let n=0;for(let d=new Date(a+"T12:00");d<=new Date(b+"T12:00");d.setDate(d.getDate()+1)){const w=d.getDay();if(w&&w<6)n++}return n}
+// ---- moteur de calcul (pur) ----
+function compute(s,y){const Yr=s.years[y];if(!Yr)return null;const inc=o=>o.status==="validé"||(o.status==="planifié"&&s.settings.incPlanned);
+const rows=[];let cp=R(Yr.open),sm=R(Yr.smOpen),cpAcc=0,cpUsed=0,smUsed=0;
+for(let m=0;m<12;m++){const mo=s.ops.filter(o=>inc(o)&&+o.start.slice(0,4)===+y&&+o.start.slice(5,7)-1===m);
+const pU=R(mo.filter(o=>o.type==="cp").reduce((a,o)=>a+ +o.days,0)),sU=R(mo.filter(o=>o.type==="sm").reduce((a,o)=>a+ +o.days,0));
+const ad=s.adj.filter(a=>+a.year===+y&&a.month===m);const aC=R(ad.filter(a=>a.type==="cp").reduce((x,a)=>x+a.delta,0)),aS=R(ad.filter(a=>a.type==="sm").reduce((x,a)=>x+a.delta,0));
+const init=cp,cred=R(Yr.cpMonthly);cp=R(cp+cred+aC-pU);sm=R(sm+aS-sU);cpAcc=R(cpAcc+cred);cpUsed=R(cpUsed+pU);smUsed=R(smUsed+sU);
+rows.push({m,init,cred,pU,fin:cp,smU:sU,smRest:sm,adj:aC})}
+return{rows,open:Yr.open,cpAcc,cpUsed,final:cp,smUsed,smRest:sm,smAnnual:Yr.smAnnual}}
+function nextYear(y){const c=compute(S,y);return{open:c?c.final:S.settings.cpAnnual*0,openManual:false,smOpen:S.settings.smCarry&&c?R(c.smRest+S.settings.smAnnual):S.settings.smAnnual,cpMonthly:S.settings.cpMonthly,cpAnnual:S.settings.cpAnnual,smAnnual:S.settings.smAnnual}}
+// ---- utilitaires UI ----
+const f=n=>(+n).toLocaleString("fr-FR",{minimumFractionDigits:S.settings.dec,maximumFractionDigits:S.settings.dec});
+const cls=n=>n<0?"neg":n<3?"low":"good";
+function toast(t){const e=document.createElement("div");e.className="msg";e.textContent=t;document.body.appendChild(e);setTimeout(()=>e.remove(),2600)}
+function log(a,d=""){S.log.unshift({t:Date.now(),a,d});S.log=S.log.slice(0,500)}
+function commit(a,d){if(a)log(a,d);if(S.demo&&a&&!/démonstration/.test(a))S.demo=S.demo;save();render()}
+const dlg=document.getElementById("dlg");
+function modal(html,onOk){dlg.innerHTML=`<form method="dialog" id="mf">${html}<div class="row" style="margin-top:14px;justify-content:flex-end"><button type="button" class="b" id="mc">Annuler</button><button class="b p" id="mo">Enregistrer</button></div></form>`;dlg.showModal();
+dlg.querySelector("#mc").onclick=()=>dlg.close();dlg.querySelector("#mf").onsubmit=e=>{e.preventDefault();const fd=Object.fromEntries(new FormData(e.target));if(onOk(fd)!==false)dlg.close()};return dlg}
+function confirmDlg(t,fn){dlg.innerHTML=`<p>${t}</p><div class="row" style="justify-content:flex-end"><button class="b" id="n">Non</button><button class="b p" id="y">Oui, confirmer</button></div>`;dlg.showModal();dlg.querySelector("#n").onclick=()=>dlg.close();dlg.querySelector("#y").onclick=()=>{dlg.close();fn()}}
+function dl(name,text,type){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+const csv=rows=>"\ufeff"+rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(";")).join("\n");
+// ---- vues ----
+function yearSel(){const ys=Object.keys(S.years).sort();return`<select onchange="Y=+this.value;render()">${ys.map(y=>`<option ${+y===Y?"selected":""}>${y}</option>`).join("")}</select>`}
+function head(t,extra=""){return`<div class="top"><h2>${t}</h2>${yearSel()}${extra}</div>`+(S.demo?`<div class="card noprint" style="margin-bottom:12px">Jeu de démonstration chargé. <button class="b" onclick="clearDemo()">Effacer la démo et démarrer à vide</button></div>`:"")}
+function clearDemo(){confirmDlg("Supprimer toutes les données de démonstration ?",()=>{S={demo:false,settings:S.settings,years:{[Y]:{...nextYear(Y-1),open:0}},ops:[],adj:[],log:[]};log("Données de démonstration effacées");save();render()})}
+function cur(c){const n=new Date();return +n.getFullYear()===Y?n.getMonth():Y<n.getFullYear()?11:-1}
+function vDash(){const c=compute(S,Y),k=cur(c),r=c.rows[Math.max(k,0)];
+const cards=[["Solde CP disponible",f(c.final),cls(c.final)],["CP acquis (année)",f(c.cpAcc),""],["CP consommés",f(c.cpUsed),""],["Solde initial reporté",f(c.open),""],["Crédit annuel maladie",f(c.smAnnual),""],["Maladie consommés",f(c.smUsed),""],["Solde maladie restant",f(c.smRest),cls(c.smRest)],["Mois en cours",k<0?"—":MOIS[k]+(k===11&&Y<new Date().getFullYear()?" (clos)":""),""]];
+return head("Tableau de bord")+`<div class="grid">${cards.map(x=>`<div class="card"><small>${x[0]}</small><b class="${x[2]}">${x[1]}</b></div>`).join("")}</div><p style="color:var(--mu)">Solde CP en fin de ${MOIS[r.m].toLowerCase()} : <b class="${cls(r.fin)}">${f(r.fin)}</b> jour(s).</p>`}
+function vMonth(){const c=compute(S,Y),k=cur(c);const note=m=>esc((S.years[Y].notes||{})[m]||"");
+return head("Suivi mensuel",`<button class="b" onclick="window.print()">Imprimer</button><button class="b" onclick="expMonth()">Exporter CSV</button>`)+`<div class="tw"><table><thead><tr><th>Mois</th><th>Solde initial CP</th><th>Crédit CP</th><th>CP pris</th><th>Solde final CP</th><th>Crédit annuel maladie</th><th>Maladie pris</th><th>Solde maladie</th><th class="l">Commentaire</th></tr></thead><tbody>${c.rows.map(r=>`<tr><td>${MOIS[r.m]}${r.adj?` <span class="tag">ajust. ${f(r.adj)}</span>`:""}</td><td class="c">${f(r.init)}</td><td class="c">${f(r.cred)}</td><td>${f(r.pU)}</td><td class="c ${cls(r.fin)}">${f(r.fin)}</td><td>${f(c.smAnnual)}</td><td>${f(r.smU)}</td><td class="c ${cls(r.smRest)}">${f(r.smRest)}</td><td class="l"><input value="${note(r.m)}" style="width:150px" onchange="setNote(${r.m},this.value)"></td></tr>`).join("")}</tbody>
+<tfoot><tr><td>Synthèse ${Y}</td><td>${f(c.open)}</td><td>${f(c.cpAcc)}</td><td>${f(c.cpUsed)}</td><td class="${cls(c.final)}">${f(c.final)}</td><td>${f(c.smAnnual)}</td><td>${f(c.smUsed)}</td><td class="${cls(c.smRest)}">${f(c.smRest)}</td><td class="l"></td></tr></tfoot></table></div>
+<p style="color:var(--mu)">Colonnes colorées = calculées. Crédit annuel théorique CP : ${f(S.years[Y].cpAnnual)} j (même acquisition que le crédit mensuel, jamais cumulée deux fois). Acquis à ce jour : ${f(k<0?0:R(S.years[Y].cpMonthly*(k+1)))}.</p>`}
+function setNote(m,v){const y=S.years[Y];y.notes=y.notes||{};y.notes[m]=v;save()}
+function expMonth(){const c=compute(S,Y);dl(`suivi-${Y}.csv`,csv([["Mois","Solde initial CP","Credit CP","CP pris","Solde final CP","Credit annuel maladie","Maladie pris","Solde maladie","Commentaire"],...c.rows.map(r=>[MOIS[r.m],f(r.init),f(r.cred),f(r.pU),f(r.fin),f(c.smAnnual),f(r.smU),f(r.smRest),(S.years[Y].notes||{})[r.m]||""]),["Synthèse",f(c.open),f(c.cpAcc),f(c.cpUsed),f(c.final),f(c.smAnnual),f(c.smUsed),f(c.smRest),""]]),"text/csv")}
+function vOps(){let L=S.ops.filter(o=>+o.start.slice(0,4)===Y).filter(o=>(!F.m||+o.start.slice(5,7)-1===+F.m)&&(!F.t||o.type===F.t)&&(!F.s||o.status===F.s)&&(!F.q||(o.comment||"").toLowerCase().includes(F.q.toLowerCase()))).sort((a,b)=>b.start.localeCompare(a.start));
+return head("Opérations",`<button class="b p" onclick="opForm()">+ Nouvelle opération</button><button class="b" onclick="expOps()">Exporter CSV</button>`)+`<div class="row"><input placeholder="Rechercher…" value="${esc(F.q)}" oninput="F.q=this.value;render(true)"><select onchange="F.m=this.value;render()"><option value="">Tous les mois</option>${MOIS.map((m,i)=>`<option value="${i}" ${F.m!==""&&+F.m===i?"selected":""}>${m}</option>`).join("")}</select><select onchange="F.t=this.value;render()"><option value="">Tous types</option><option value="cp" ${F.t==="cp"?"selected":""}>Congé payé</option><option value="sm" ${F.t==="sm"?"selected":""}>Congé maladie</option></select><select onchange="F.s=this.value;render()"><option value="">Tous statuts</option>${["planifié","validé","annulé"].map(s=>`<option ${F.s===s?"selected":""}>${s}</option>`).join("")}</select></div>
+<div class="tw"><table><thead><tr><th>Début</th><th>Fin</th><th class="l">Type</th><th>Jours</th><th class="l">Statut</th><th class="l">Commentaire</th><th></th></tr></thead><tbody>${L.map(o=>`<tr><td>${o.start}</td><td>${o.end}</td><td class="l">${o.type==="cp"?"Congé payé":"Maladie"}</td><td>${f(o.days)}</td><td class="l"><span class="tag">${o.status}</span></td><td class="l">${esc(o.comment)}</td><td><button class="b" onclick="opForm('${o.id}')">Modifier</button> <button class="b d" onclick="opDel('${o.id}')">Supprimer</button></td></tr>`).join("")||`<tr><td colspan="7" class="l">Aucune opération.</td></tr>`}</tbody></table></div>`}
+function expOps(){dl("operations.csv",csv([["Début","Fin","Type","Jours","Statut","Commentaire"],...S.ops.map(o=>[o.start,o.end,o.type==="cp"?"Congé payé":"Congé maladie",o.days,o.status,o.comment||""])]),"text/csv")}
+function opForm(id){const o=S.ops.find(x=>x.id===id)||{start:PD||`${Y}-01-01`,end:PD||`${Y}-01-01`,type:"cp",days:1,status:"validé",comment:""};
+const d=modal(`<h3>${id?"Modifier":"Nouvelle"} opération</h3><label>Début</label><input type="date" name="start" required value="${o.start}"><label>Fin</label><input type="date" name="end" required value="${o.end}"><label>Type</label><select name="type"><option value="cp" ${o.type==="cp"?"selected":""}>Congé payé</option><option value="sm" ${o.type==="sm"?"selected":""}>Congé maladie</option></select><label>Jours (jours ouvrés auto, fractions autorisées, ex. 0,5)</label><input name="days" type="number" step="0.5" min="0" required value="${o.days}"><label>Statut</label><select name="status">${["planifié","validé","annulé"].map(s=>`<option ${o.status===s?"selected":""}>${s}</option>`).join("")}</select><label>Commentaire</label><input name="comment" value="${esc(o.comment)}">`,fd=>{
+if(fd.end<fd.start){toast("La date de fin précède le début");return false}if(!(+fd.days>=0)){toast("Nombre de jours invalide");return false}
+const n={id:id||uid(),start:fd.start,end:fd.end,type:fd.type,days:R(+fd.days),status:fd.status,comment:fd.comment};const y=+n.start.slice(0,4);
+if(!S.years[y]){toast(`L’année ${y} n’existe pas : créez-la dans Paramètres`);return false}
+const old=S.ops.find(x=>x.id===id);if(old)Object.assign(old,n);else S.ops.push(n);Y=y;commit(id?"Opération modifiée":"Opération créée",`${n.start}→${n.end} ${n.type} ${n.days} j (${n.status})`+(old?"":""));toast("Opération enregistrée")});
+const g=n=>d.querySelector(`[name=${n}]`),auto=()=>{g("days").value=bdays(g("start").value,g("end").value)};g("start").onchange=g("end").onchange=auto}
+function opDel(id){confirmDlg("Supprimer cette opération ? Les soldes seront recalculés.",()=>{const o=S.ops.find(x=>x.id===id);S.ops=S.ops.filter(x=>x.id!==id);commit("Opération supprimée",`${o.start} ${o.type} ${o.days} j`);toast("Opération supprimée")})}
+function vHist(){return head("Historique")+`<h3 class="sec">Ajustements de solde</h3><div class="tw"><table><thead><tr><th>Date</th><th class="l">Compteur</th><th>Ancienne</th><th>Nouvelle</th><th class="l">Motif</th></tr></thead><tbody>${S.adj.map(a=>`<tr><td>${a.date}</td><td class="l">${a.type==="cp"?"CP":"Maladie"} ${a.year} ${MOIS[a.month]}</td><td>${f(a.oldV)}</td><td>${f(a.newV)}</td><td class="l">${esc(a.reason)}</td></tr>`).join("")||`<tr><td colspan="5" class="l">Aucun ajustement.</td></tr>`}</tbody></table></div><h3 class="sec">Journal des modifications</h3><div class="tw"><table><thead><tr><th>Date</th><th class="l">Action</th><th class="l">Détail</th></tr></thead><tbody>${S.log.map(l=>`<tr><td>${new Date(l.t).toLocaleString("fr-FR")}</td><td class="l">${esc(l.a)}</td><td class="l">${esc(l.d)}</td></tr>`).join("")}</tbody></table></div>`}
+function vParams(){const s=S.settings,y=S.years[Y];
+return head("Paramètres")+`<div class="card"><h3 style="margin-top:0">Paramètres par défaut (nouvelles années)</h3><form onsubmit="saveSet(event)" class="row">
+${[["cpAnnual","Crédit annuel CP"],["cpMonthly","Crédit mensuel CP"],["smAnnual","Crédit annuel maladie"]].map(([k,l])=>`<label>${l}<br><input name="${k}" type="number" step="0.01" value="${s[k]}"></label>`).join("")}
+<label>Décimales<br><select name="dec"><option ${s.dec===2?"selected":""}>2</option><option ${s.dec===1?"selected":""}>1</option><option ${s.dec===3?"selected":""}>3</option></select></label>
+<label>Maladie cumulable<br><select name="smCarry"><option value="0">Non (réinitialisé)</option><option value="1" ${s.smCarry?"selected":""}>Oui (reporté)</option></select></label>
+<label>Congés planifiés dans le solde<br><select name="incPlanned"><option value="0">Exclus</option><option value="1" ${s.incPlanned?"selected":""}>Inclus (prévisionnel)</option></select></label>
+<div style="align-self:end"><button class="b p">Enregistrer</button></div></form></div>
+<div class="card" style="margin-top:12px"><h3 style="margin-top:0">Année ${Y}</h3><p>Solde initial CP : <b>${f(y.open)}</b> ${y.openManual?'<span class="tag">modifié manuellement</span>':'<span class="tag">report automatique</span>'} · Crédit mensuel : ${f(y.cpMonthly)} · Crédit annuel : ${f(y.cpAnnual)} · Maladie : ${f(y.smAnnual)} (initial ${f(y.smOpen)})</p>
+<div class="row"><button class="b" onclick="editYear()">Modifier l’année</button><button class="b" onclick="adjForm()">Correction de solde</button><button class="b p" onclick="newYear()">+ Créer ${Math.max(...Object.keys(S.years))+1}</button><button class="b d" onclick="delYear()">Supprimer l’année</button></div></div>
+<div class="card" style="margin-top:12px"><h3 style="margin-top:0">Sauvegarde et tests</h3><div class="row"><button class="b" onclick="backup()">Sauvegarder (JSON)</button><button class="b" onclick="restore()">Restaurer…</button><button class="b" onclick="runTests()">Lancer les tests de calcul</button></div><div id="tests"></div><p style="color:var(--mu);margin:0">Les données sont conservées dans ce navigateur (localStorage). Pour changer d’appareil, utilisez Sauvegarder puis Restaurer.</p></div>`}
+function saveSet(e){e.preventDefault();const fd=Object.fromEntries(new FormData(e.target));const o={...S.settings,cpAnnual:+fd.cpAnnual,cpMonthly:+fd.cpMonthly,smAnnual:+fd.smAnnual,dec:+fd.dec,smCarry:fd.smCarry==="1",incPlanned:fd.incPlanned==="1"};
+const ch=Object.keys(o).filter(k=>o[k]!==S.settings[k]).map(k=>`${k}: ${S.settings[k]}→${o[k]}`).join(", ");S.settings=o;commit("Paramètres modifiés",ch);toast("Paramètres enregistrés")}
+function editYear(){const y=S.years[Y];modal(`<h3>Année ${Y}</h3><label>Solde initial CP</label><input name="open" type="number" step="0.01" value="${y.open}"><label>Justification (obligatoire si le solde initial change)</label><input name="why"><label>Crédit mensuel CP</label><input name="cpMonthly" type="number" step="0.01" value="${y.cpMonthly}"><label>Crédit annuel CP</label><input name="cpAnnual" type="number" step="0.01" value="${y.cpAnnual}"><label>Crédit annuel maladie</label><input name="smAnnual" type="number" step="0.01" value="${y.smAnnual}"><label>Solde initial maladie</label><input name="smOpen" type="number" step="0.01" value="${y.smOpen}">`,fd=>{
+if(R(+fd.open)!==R(y.open)&&!fd.why.trim()){toast("Un motif est obligatoire pour modifier le solde initial");return false}
+const d=R(+fd.open)!==R(y.open)?`Solde initial ${y.open}→${fd.open} (${fd.why})`:"";if(d){y.openManual=true;}
+Object.assign(y,{open:R(+fd.open),cpMonthly:+fd.cpMonthly,cpAnnual:+fd.cpAnnual,smAnnual:+fd.smAnnual,smOpen:+fd.smOpen});commit(`Année ${Y} modifiée`,d);toast("Année mise à jour")})}
+function adjForm(){modal(`<h3>Correction manuelle (${Y})</h3><label>Compteur</label><select name="type"><option value="cp">Congés payés</option><option value="sm">Congés maladie</option></select><label>Mois</label><select name="month">${MOIS.map((m,i)=>`<option value="${i}">${m}</option>`).join("")}</select><label>Nouvelle valeur du solde final du mois</label><input name="nv" type="number" step="0.01" required><label>Motif (obligatoire)</label><input name="reason" required>`,fd=>{
+if(!fd.reason.trim())return false;const c=compute(S,Y),r=c.rows[+fd.month],oldV=fd.type==="cp"?r.fin:r.smRest,delta=R(+fd.nv-oldV);
+S.adj.push({id:uid(),year:Y,month:+fd.month,type:fd.type,oldV,newV:R(+fd.nv),delta,date:new Date().toISOString().slice(0,10),reason:fd.reason});commit("Ajustement de solde",`${fd.type} ${Y}/${+fd.month+1} ${oldV}→${fd.nv} : ${fd.reason}`);toast("Correction enregistrée")})}
+function newYear(){const n=Math.max(...Object.keys(S.years))+1,p=compute(S,n-1),d=nextYear(n-1);confirmDlg(`Créer ${n} avec report du solde final CP de ${n-1} (${f(p.final)} j) ?`,()=>{S.years[n]=d;Y=n;commit(`Année ${n} créée`,`Report CP ${f(d.open)}`);toast("Année créée")})}
+function delYear(){if(Object.keys(S.years).length<2)return toast("Impossible : une année doit exister");confirmDlg(`Supprimer l’année ${Y} et ses opérations ?`,()=>{S.ops=S.ops.filter(o=>+o.start.slice(0,4)!==Y);S.adj=S.adj.filter(a=>+a.year!==Y);delete S.years[Y];commit(`Année ${Y} supprimée`);Y=+Object.keys(S.years).sort().pop();render()})}
+function backup(){dl("sauvegarde-conges.json",JSON.stringify(S,null,1),"application/json")}
+function restore(){modal(`<h3>Restaurer</h3><label>Collez le contenu du fichier JSON</label><textarea name="j" rows="8"></textarea>`,fd=>{try{const o=JSON.parse(fd.j);if(!o.years||!o.ops||!o.settings)throw 0;S=o;Y=+Object.keys(S.years).sort().pop();commit("Données restaurées");toast("Restauration effectuée")}catch(e){toast("JSON invalide");return false}})}
+function runTests(){const base=()=>({settings:{incPlanned:false},years:{2026:{open:7.27,smOpen:5,cpMonthly:1.83,cpAnnual:22,smAnnual:5},2027:{open:0,smOpen:5,cpMonthly:1.83,cpAnnual:22,smAnnual:5}},ops:[],adj:[]});
+const op=(d,t="cp",st="validé")=>({start:"2026-01-10",end:"2026-01-12",type:t,days:d,status:st});const T=[];const ck=(n,a,b)=>T.push([n,Math.abs(a-b)<1e-9]);
+let s=base();s.ops=[op(3)];let c=compute(s,2026);ck("1 Report + janvier = 6,10",c.rows[0].fin,6.1);ck("2 Février sans congé = 7,93",c.rows[1].fin,7.93);
+s.ops=[{...op(2),start:"2026-05-04"}];c=compute(s,2026);ck("3 CP en mai déduit puis mois suivants recalculés",c.rows[11].fin,7.27+1.83*12-2);
+s=base();s.ops=[op(2,"sm")];c=compute(s,2026);ck("4 Maladie 2 j → reste 3",c.smRest,3);ck("4b CP inchangé",c.final,7.27+1.83*12);
+s=base();s.ops=[op(3)];s.ops[0].days=2;c=compute(s,2026);ck("5 Modification 3→2 : janvier",c.rows[0].fin,7.1);s.ops=[];c=compute(s,2026);ck("6 Suppression : janvier",c.rows[0].fin,9.1);
+s.years[2027].open=compute(s,2026).final;ck("7 Report décembre → janvier N+1",compute(s,2027).rows[0].init,compute(s,2026).final);
+ck("8 Pas de double crédit (12 × 1,83)",compute(s,2026).cpAcc,21.96);
+s=base();s.years[2026].cpMonthly=0.1;s.ops=[];c=compute(s,2026);ck("9 Précision : 12 × 0,1 sans dérive",c.cpAcc,1.2);
+s=base();s.ops=[op(1,"cp","annulé")];ck("10 Opération annulée ignorée",compute(s,2026).rows[0].pU,0);
+document.getElementById("tests").innerHTML=T.map(t=>`<div class="${t[1]?"good":"neg"}">${t[1]?"✔":"✘"} ${t[0]}</div>`).join("")}
+function render(keep){const m=document.getElementById("main");const act=document.activeElement,pos=act&&act.selectionStart;
+document.getElementById("nav").innerHTML=`<h1>Suivi des congés</h1><small style="display:block;margin:0 8px 10px;color:var(--mu)">${esc(WHO)}</small>`+[["dash","Tableau de bord"],["month","Suivi mensuel"],["cal","Calendrier"],["ops","Opérations"],["fc","Prévisions"],["hist","Historique"],["params","Paramètres"]].map(([k,l])=>`<button class="${V===k?"on":""}" onclick="V='${k}';render()">${l}</button>`).join("");
+m.innerHTML={dash:vDash,month:vMonth,cal:vCal,ops:vOps,fc:vFc,hist:vHist,params:vParams}[V]();
+if(keep){const i=m.querySelector("input[placeholder]");if(i){i.focus();try{i.setSelectionRange(pos,pos)}catch(e){}}}}
+function vCal(){const first=(new Date(Y,CM,1).getDay()+6)%7,n=new Date(Y,CM+1,0).getDate(),cells=[];for(let i=0;i<first;i++)cells.push("<div></div>");
+for(let d=1;d<=n;d++){const iso=`${Y}-${String(CM+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`,w=new Date(Y,CM,d).getDay(),os=S.ops.filter(o=>o.status!=="annulé"&&o.start<=iso&&iso<=o.end);
+cells.push(`<div onclick="PD='${iso}';opForm();PD=''" style="min-height:64px;padding:4px;border:1px solid var(--bd);border-radius:8px;cursor:pointer;background:${w%6?"var(--sf)":"var(--bg)"}"><small>${d}</small>${os.map(o=>`<div style="font-size:11px;margin-top:2px;padding:1px 4px;border-radius:4px;color:#fff;background:${o.type==="cp"?"#2f5bea":"#c0392b"};opacity:${o.status==="planifié"?.55:1}">${o.type==="cp"?"CP":"Maladie"}${o.status==="planifié"?" (plan.)":""}</div>`).join("")}</div>`)}
+return head("Calendrier",`<button class="b" onclick="CM=(CM+11)%12;render()">←</button><b>${MOIS[CM]} ${Y}</b><button class="b" onclick="CM=(CM+1)%12;render()">→</button>`)+`<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;min-width:0">${["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"].map(x=>`<small style="text-align:center;color:var(--mu)">${x}</small>`).join("")}${cells.join("")}</div><p style="color:var(--mu)">Cliquez sur un jour pour créer une opération. Teinte claire = planifié, pleine = validé.</p>`}
+function vFc(){const A=compute({...S,settings:{...S.settings,incPlanned:false}},Y),P=compute({...S,settings:{...S.settings,incPlanned:true}},Y),pl=A.rows.map((r,i)=>R(P.rows[i].pU-r.pU)),tot=R(pl.reduce((a,b)=>a+b,0)),mx=Math.max(1,...P.rows.map(r=>r.fin),...A.rows.map(r=>r.fin));
+const bar=(v,c)=>`<div style="height:6px;border-radius:3px;background:${c};width:${Math.max(0,v)/mx*100}%"></div>`;
+return head("Prévisions")+`<div class="grid"><div class="card"><small>Solde fin d’année (réel validé)</small><b class="${cls(A.final)}">${f(A.final)}</b></div><div class="card"><small>Solde fin d’année (prévisionnel)</small><b class="${cls(P.final)}">${f(P.final)}</b></div><div class="card"><small>Jours planifiés (CP)</small><b>${f(tot)}</b></div><div class="card"><small>Jours encore disponibles à planifier</small><b class="${cls(P.final)}">${f(P.final)}</b></div></div>
+<div class="tw"><table><thead><tr><th>Mois</th><th>CP pris (réel)</th><th>CP planifiés</th><th>Solde réel</th><th>Solde prévisionnel</th><th>Écart</th><th class="l" style="min-width:120px"></th></tr></thead><tbody>${A.rows.map((r,i)=>`<tr><td>${MOIS[i]}</td><td>${f(r.pU)}</td><td>${f(pl[i])}</td><td class="c ${cls(r.fin)}">${f(r.fin)}</td><td class="c ${cls(P.rows[i].fin)}">${f(P.rows[i].fin)}</td><td>${f(R(P.rows[i].fin-r.fin))}</td><td class="l">${bar(r.fin,"var(--ac)")}<div style="height:3px"></div>${bar(P.rows[i].fin,"var(--wa)")}</td></tr>`).join("")}</tbody></table></div><p style="color:var(--mu)">Réel = congés validés uniquement. Prévisionnel = validés + planifiés, avec le crédit mensuel de chaque mois jusqu’à décembre. Barres : bleu réel, ambre prévisionnel.</p>`}
+render();save();
+if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
+</script></body></html>
